@@ -1,0 +1,131 @@
+﻿# ==============================================================================
+# PROJECT: THE BRISBANE "COMMUTER TAX" ANALYSIS
+# AUTHOR: April Williams
+# DATE: December 2025
+# ==============================================================================
+
+
+# ~ 1. SETUP & IMPORTS ~
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+# Set professional chart style
+sns.set_theme(style="whitegrid")
+
+
+# ~ 2. DATA LOADING & CLEANING ~
+# Load the raw data
+try:
+    df = pd.read_csv('listings.csv')
+    print("Y File loaded successfully.")
+except FileNotFoundError:
+    print("N Error: 'listings.csv' not found. Please upload it first.")
+
+
+# Clean the Price Column (Remove '$' and ',')
+# Create a copy to avoid warnings
+df_clean = df.copy()
+
+
+# Remove symbols and convert to float (Force it to be a number)
+df_clean['price'] = df_clean['price'].astype(str).str.replace(r'[$,]', '', regex=True)
+df_clean['price'] = pd.to_numeric(df_clean['price'], errors='coerce')
+
+
+# Drop missing values in critical columns
+df_clean = df_clean.dropna(subset=['latitude', 'longitude', 'price'])
+
+
+# Filter outliers (Remove listings > $1,000 to see the "real" market)
+df_clean = df_clean[df_clean['price'] < 1000]
+
+
+print(f"Y Data cleaned. Analysis sample size: {len(df_clean)} listings.")
+
+
+# ~ 3. FEATURE ENGINEERING (DISTANCE CALCULATION) ~
+# Define Brisbane CBD Coordinates
+cbd_lat = -27.4698
+cbd_lon = 153.0251
+
+
+# Define Haversine Function (Calculate distance on round Earth)
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371  # Earth radius in km
+    phi1, phi2 = np.radians(lat1), np.radians(lat2)
+    dphi = np.radians(lat2 - lat1)
+    dlambda = np.radians(lon2 - lon1)
+    a = np.sin(dphi/2)**2 + np.cos(phi1)*np.cos(phi2) * np.sin(dlambda/2)**2
+    return 2 * R * np.arctan2(np.sqrt(a), np.sqrt(1 - a))
+
+
+# Apply to dataset
+df_clean['dist_cbd_km'] = haversine_distance(
+    df_clean['latitude'], 
+    df_clean['longitude'], 
+    cbd_lat, 
+    cbd_lon
+)
+
+
+# ~ 4. VISUALISATION 1: THE GEOSPATIAL MAP ~
+plt.figure(figsize=(10, 8))
+
+
+# Create Scatter Plot
+sns.scatterplot(
+    data=df_clean, 
+    x='longitude', 
+    y='latitude', 
+    hue='price', 
+    size='price', 
+    sizes=(5, 100),       # Dots range from size 5 to 100
+    palette='viridis_r',  # Reversed: Yellow = Expensive
+    alpha=0.7,
+    legend=False          # We build a custom colorbar below
+)
+
+
+# Create Professional Color Bar
+norm = plt.Normalize(df_clean['price'].min(), df_clean['price'].max())
+sm = plt.cm.ScalarMappable(cmap="viridis_r", norm=norm)
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=plt.gca(), label='Price per Night ($)')
+
+
+# Labels & formatting
+plt.title('Brisbane Rental Landscape (2025)', fontsize=14, weight='bold')
+plt.xlabel('Longitude')
+plt.ylabel('Latitude')
+plt.axis('equal') # Prevent map stretching
+sns.despine(left=True, bottom=True)
+
+
+plt.show() # Display Map
+
+
+# ~ 5. VISUALISATION 2: THE "COMMUTER TAX" PROOF ~
+plt.figure(figsize=(10, 6))
+
+
+# Scatter Plot with Regression Line
+sns.regplot(
+    data=df_clean, 
+    x='dist_cbd_km', 
+    y='price', 
+    scatter_kws={'alpha': 0.3, 'color': 'purple', 's': 10}, # Light purple dots
+    line_kws={'color': 'red', 'linewidth': 2}               # Strong red trend line
+)
+
+
+# Labels
+plt.title('The Commuter Tax: Price vs. Distance to CBD', fontsize=14, weight='bold')
+plt.xlabel('Distance from CBD (km)')
+plt.ylabel('Price per Night ($)')
+plt.xlim(0, 50) # Focus on the inner 50km
+
+
+plt.show() # Display Graph
