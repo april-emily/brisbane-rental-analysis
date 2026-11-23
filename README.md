@@ -1,6 +1,6 @@
 The Brisbane "Commuter Tax" Analysis
 
-Author: April Williams
+Author: April Sappho
 Date: December 2025
 Status: Complete
 
